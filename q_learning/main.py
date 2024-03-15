@@ -1,22 +1,22 @@
-import gymnasium as gym
-import numpy as np
+import argparse
+import json
 from collections import defaultdict
 from pathlib import Path
-import json
-import argparse
+
+import gymnasium as gym
+import numpy as np
+from tqdm import tqdm
 
 
 class QFunction:
     def __init__(
         self,
-        num_actions: int,
-        num_states: int,
         lr: int = 0.1,
         discount_factor: int = 0.9,
     ):
-        self.q_values = self.init_q_values(num_actions, num_states)
         self.lr = lr
         self.discount_factor = discount_factor
+        self.q_values = None
 
     def init_q_values(self, num_actions, num_states) -> dict:
         q_values = defaultdict(dict)
@@ -25,7 +25,8 @@ class QFunction:
             for action in range(num_actions):
                 q_values[state][action] = 0
 
-        return q_values
+        self.q_values = q_values
+        return self
 
     def update(self, state, action, next_state, reward):
         next_state_max = max(self.q_values[next_state].values())
@@ -47,8 +48,6 @@ class QFunction:
     def load_q_values(self, name: str = "q_values", load_path: Path = Path("outputs")):
         with open(load_path / f"{name}.json", "r") as f:
             q_values_str = json.load(f)
-
-        print(f"q_values: {q_values_str} ")
 
         self.q_values = {
             int(state): {int(action): float(value) for action, value in actions.items()}
@@ -72,21 +71,17 @@ class Policy:
 
 
 class Train:
-    def __init__(
-        self,
-        env_params: dict,
-    ):
+    def __init__(self, env_params: dict, q_function: QFunction):
         self.env = gym.make(**env_params)
         observation, info = self.env.reset()
 
-        self.q_function = QFunction(
+        self.q_function = q_function.init_q_values(
             self.env.action_space.n, self.env.observation_space.n
         )
         self.policy = Policy(self.env.action_space.n)
 
     def train(self, num_episodes: int):
-        for i in range(num_episodes):
-            print("Episode ", i)
+        for i in tqdm(range(num_episodes)):
             self.episode()
 
         self.q_function.save_q_values()
@@ -102,9 +97,6 @@ class Train:
             # 2. Take action
             next_state, reward, terminated, truncated, info = self.env.step(action)
 
-            if reward != 0:
-                print("win")
-
             # 3. Update Q-Value
             self.q_function.update(state, action, next_state, reward)
 
@@ -117,13 +109,15 @@ class Train:
 
 
 class Game:
-    def __init__(self, env_params: dict, render_mode: str):
+    def __init__(self, env_params: dict, render_mode: str, q_function: QFunction):
         self.env = gym.make(render_mode=render_mode, **env_params)
         observation, info = self.env.reset()
 
-        self.q_function = QFunction(
+        self.q_function = q_function.init_q_values(
             self.env.action_space.n, self.env.observation_space.n
         )
+        self.q_function.load_q_values()
+
         self.q_function.load_q_values()
         self.policy = Policy(self.env.action_space.n)
 
@@ -148,8 +142,12 @@ if __name__ == "__main__":
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--play", action="store_true")
     parser.add_argument("--episodes", type=int, default=500)
+    parser.add_argument("--lr", type=float, default=0.1)
+    parser.add_argument("--discount-factor", type=float, default=0.9)
 
     args = parser.parse_args()
+
+    q_function = QFunction(lr=args.lr, discount_factor=args.discount_factor)
 
     env_params = {
         "id": "FrozenLake-v1",
@@ -159,9 +157,9 @@ if __name__ == "__main__":
     }
 
     if args.train:
-        trainer = Train(env_params)
+        trainer = Train(env_params, q_function=q_function)
         trainer.train(args.episodes)
 
     if args.play:
-        game = Game(render_mode="human", env_params=env_params)
+        game = Game(render_mode="human", env_params=env_params, q_function=q_function)
         game.play(max_steps=20)

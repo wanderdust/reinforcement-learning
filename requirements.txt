@@ -1,1 +1,2 @@
 gymnasium[toy-text]==0.29.1
+tqdm==4.66.2
