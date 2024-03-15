@@ -80,9 +80,9 @@ class Train:
         )
         self.policy = Policy(self.env.action_space.n)
 
-    def train(self, num_episodes: int):
+    def train(self, num_episodes: int, max_steps: int):
         for i in tqdm(range(num_episodes)):
-            self.episode()
+            self.episode(max_steps=max_steps)
 
         self.q_function.save_q_values()
         self.env.close()
@@ -144,22 +144,23 @@ if __name__ == "__main__":
     parser.add_argument("--episodes", type=int, default=500)
     parser.add_argument("--lr", type=float, default=0.1)
     parser.add_argument("--discount-factor", type=float, default=0.9)
+    parser.add_argument("--max-steps", type=int, default=30)
 
     args = parser.parse_args()
-
-    q_function = QFunction(lr=args.lr, discount_factor=args.discount_factor)
 
     env_params = {
         "id": "FrozenLake-v1",
         "desc": None,
-        "map_name": "4x4",
+        "map_name": "8x8",
         "is_slippery": False,
     }
 
+    q_function = QFunction(lr=args.lr, discount_factor=args.discount_factor)
+
     if args.train:
         trainer = Train(env_params, q_function=q_function)
-        trainer.train(args.episodes)
+        trainer.train(args.episodes, max_steps=args.max_steps)
 
     if args.play:
         game = Game(render_mode="human", env_params=env_params, q_function=q_function)
-        game.play(max_steps=20)
+        game.play(args.max_steps)
