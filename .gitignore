@@ -172,3 +172,4 @@ pyrightconfig.json
 
 outputs
 _venv
+.python-version

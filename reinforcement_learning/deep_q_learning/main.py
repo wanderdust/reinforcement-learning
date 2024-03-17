@@ -1,6 +1,7 @@
 import gymnasium as gym
 from gymnasium.experimental.wrappers import (
     AtariPreprocessingV0,
+    ClipRewardV0,
     FrameStackObservationV0,
 )
 
@@ -10,8 +11,9 @@ env = gym.make(
     frameskip=1,
 )
 
-env = AtariPreprocessingV0(env)
+env = AtariPreprocessingV0(env, frame_skip=4, frameskip=4)
 env = FrameStackObservationV0(env, 4)
+env = ClipRewardV0(env, -1, 1)
 
 observation, info = env.reset()
 
