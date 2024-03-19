@@ -31,12 +31,8 @@ class DQN:
         self.env = ClipRewardV0(self.env, -1, 1)
 
         # Initialising Q-Function(s)
-        self.q_function = QFunction(4, self.env.action_space.n, self.device).to(
-            self.device
-        )
-        self.q_function_target = QFunction(4, self.env.action_space.n, self.device).to(
-            self.device
-        )
+        self.q_function = QFunction(4, self.env.action_space.n).to(self.device)
+        self.q_function_target = QFunction(4, self.env.action_space.n).to(self.device)
         self.optimizer = optim.RMSprop(self.q_function.parameters(), lr=0.01)
         self.criterion = MSELoss()
 
@@ -68,11 +64,13 @@ class DQN:
 
     def train(self):
         obs, info = self.env.reset()
+        obs = torch.tensor(obs, dtype=torch.float32).to(self.device).unsqueeze(0)
 
         for step_i in count(0):
             action = self.policy(obs)
 
             next_obs, reward, terminated, truncated, info = self.env.step(action)
+            next_obs = torch.tensor(obs, dtype=torch.float32).to(self.device)
             reward = torch.tensor(reward, dtype=torch.float32).to(self.device)
 
             self.memory.add(obs, action, reward, next_obs, terminated)
@@ -86,6 +84,9 @@ class DQN:
 
             if terminated:
                 obs, info = self.env.reset()
+                obs = (
+                    torch.tensor(obs, dtype=torch.float32).to(self.device).unsqueeze(0)
+                )
 
     def learn(self, step_i):
         # 4. Sample random batch of transitions
@@ -96,9 +97,7 @@ class DQN:
             if terminated:
                 y = reward
             else:
-                y = reward + self.discount * torch.max(
-                    self.q_function_target(next_obs)
-                ).to(self.device)
+                y = reward + self.discount * torch.max(self.q_function_target(next_obs))
 
             q_s = self.q_function_target(obs).squeeze()[action].to(self.device)
 

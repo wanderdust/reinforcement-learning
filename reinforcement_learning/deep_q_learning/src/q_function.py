@@ -4,9 +4,8 @@ from torch.nn import functional as F
 
 
 class QFunction(nn.Module):
-    def __init__(self, n_inputs, n_actions, device):
+    def __init__(self, n_inputs, n_actions):
         super(QFunction, self).__init__()
-        self.device = device
 
         self.conv1 = nn.Conv2d(
             in_channels=n_inputs, out_channels=16, kernel_size=8, stride=4
@@ -17,8 +16,6 @@ class QFunction(nn.Module):
         self.fc2 = nn.Linear(in_features=256, out_features=n_actions)
 
     def forward(self, x):
-        if not isinstance(x, torch.Tensor):
-            x = torch.tensor(x, dtype=torch.float32).to(self.device)
 
         x = x.unsqueeze(0) if x.dim() == 3 else x
 
