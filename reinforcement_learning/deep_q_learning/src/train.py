@@ -1,3 +1,4 @@
+from collections import deque
 from itertools import count
 
 import gymnasium as gym
@@ -43,10 +44,13 @@ class DQN:
         # Training params
         self.epsilon = 0.1
         self.discount = 0.9
-        self.update_target_q_every = 10000
+        self.update_target_q_every = 10_000
 
         # Tensorboard
         self.writer = SummaryWriter(log_dir="./tensorboard_logs")
+
+        # metrics
+        self.rewards = deque(100_000)
 
     @property
     def device(self):
@@ -89,10 +93,8 @@ class DQN:
                 )
 
     def learn(self, step_i):
-        # 4. Sample random batch of transitions
         batch = self.memory.sample(size=64)
 
-        # 5. Set target `y = r + discount * max_a Q(next_state)` or `y=r` if final state
         for obs, action, reward, next_obs, terminated in batch:
             if terminated:
                 y = reward
