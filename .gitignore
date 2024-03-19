@@ -173,3 +173,4 @@ pyrightconfig.json
 outputs
 _venv
 .python-version
+tensorboard_logs
