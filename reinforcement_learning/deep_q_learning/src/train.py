@@ -44,6 +44,16 @@ class DQN:
         self.discount = 0.9
         self.update_target_q_every = 10000
 
+        # GPU
+        self.device = self.device()
+
+    def device(self):
+        if torch.backends.mps.is_available():
+            return "mps"
+        if torch.cuda.is_available():
+            return "cuda"
+        return "cpu"
+
     def policy(self, x):
         if self.epsilon >= np.random.uniform():
             return self.env.action_space.sample()
@@ -76,11 +86,15 @@ class DQN:
         # 5. Set target `y = r + discount * max_a Q(next_state)` or `y=r` if final state
         for obs, action, reward, next_obs, terminated in batch:
             if terminated:
-                y = reward
+                y = torch.tensor(reward).to(self.device)
             else:
-                y = reward + self.discount * torch.max(self.q_function_target(next_obs))
+                y = reward + self.discount * torch.max(
+                    self.q_function_target(next_obs)
+                ).to(self.device)
 
-            loss = self.criterion(self.q_function_target(obs).squeeze()[action], y)
+            q_s = self.q_function_target(obs).squeeze()[action].to(self.device)
+
+            loss = self.criterion(q_s, y)
             loss.backward()
             self.optimizer.step()
 
