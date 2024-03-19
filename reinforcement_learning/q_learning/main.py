@@ -9,11 +9,7 @@ from tqdm import tqdm
 
 
 class QFunction:
-    def __init__(
-        self,
-        lr: int = 0.1,
-        discount_factor: int = 0.9,
-    ):
+    def __init__(self, lr: int = 0.1, discount_factor: int = 0.9):
         self.lr = lr
         self.discount_factor = discount_factor
         self.q_values = None
@@ -59,7 +55,7 @@ class Policy:
     def __init__(self, num_actions: int):
         self.num_actions = num_actions
 
-    def choose_action(self, q_values: dict, epsilon: int = 0.1) -> int:
+    def __call__(self, q_values: dict, epsilon: int = 0.1) -> int:
         if np.random.uniform() <= epsilon:
             return int(np.random.choice(np.arange(self.num_actions)))
 
@@ -85,7 +81,7 @@ class Train:
         for i in tqdm(range(num_episodes)):
             # 1. Select action based on q_value + policy
             q_values = self.q_function.q_values[state]
-            action = self.policy.choose_action(q_values, epsilon=0.2)
+            action = self.policy(q_values, epsilon=0.2)
 
             # 2. Take action
             next_state, reward, terminated, truncated, info = self.env.step(action)
@@ -93,7 +89,7 @@ class Train:
             # 3. Update Q-Value
             self.q_function.update(state, action, next_state, reward)
 
-            # Set the next_state as the current state for next iteration
+            # 4. Set the next_state as the current state for next iteration
             state = next_state
 
             if terminated or truncated:
@@ -121,7 +117,7 @@ class Game:
         for _ in range(max_steps):
             # 1. Select action based on q_value + policy
             q_values = self.q_function.q_values[state]
-            action = self.policy.choose_action(q_values, epsilon=0)
+            action = self.policy(q_values, epsilon=0)
 
             # 2. Take action
             state, reward, terminated, truncated, info = self.env.step(action)
@@ -136,10 +132,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--play", action="store_true")
-    parser.add_argument("--episodes", type=int, default=50000)
+    parser.add_argument("--episodes", type=int, default=500)
     parser.add_argument("--lr", type=float, default=0.1)
     parser.add_argument("--discount-factor", type=float, default=0.9)
-    parser.add_argument("--max-steps", type=int, default=30)
 
     args = parser.parse_args()
 
