@@ -73,23 +73,16 @@ class Policy:
 class Train:
     def __init__(self, env_params: dict, q_function: QFunction):
         self.env = gym.make(**env_params)
-        observation, info = self.env.reset()
 
         self.q_function = q_function.init_q_values(
             self.env.action_space.n, self.env.observation_space.n
         )
         self.policy = Policy(self.env.action_space.n)
 
-    def train(self, num_episodes: int, max_steps: int):
+    def train(self, num_episodes: int):
+        state, info = self.env.reset()
+
         for i in tqdm(range(num_episodes)):
-            self.episode(max_steps=max_steps)
-
-        self.q_function.save_q_values()
-        self.env.close()
-
-    def episode(self, max_steps: int = 50):
-        state = 0
-        for _ in range(max_steps):
             # 1. Select action based on q_value + policy
             q_values = self.q_function.q_values[state]
             action = self.policy.choose_action(q_values, epsilon=0.2)
@@ -105,13 +98,14 @@ class Train:
 
             if terminated or truncated:
                 next_state, info = self.env.reset()
-                return
+
+        self.q_function.save_q_values()
+        self.env.close()
 
 
 class Game:
     def __init__(self, env_params: dict, render_mode: str, q_function: QFunction):
         self.env = gym.make(render_mode=render_mode, **env_params)
-        observation, info = self.env.reset()
 
         self.q_function = q_function.init_q_values(
             self.env.action_space.n, self.env.observation_space.n
@@ -121,8 +115,9 @@ class Game:
         self.q_function.load_q_values()
         self.policy = Policy(self.env.action_space.n)
 
-    def play(self, max_steps: int = 20):
-        state = 0
+    def play(self, max_steps: int = 100):
+        state, info = self.env.reset()
+
         for _ in range(max_steps):
             # 1. Select action based on q_value + policy
             q_values = self.q_function.q_values[state]
@@ -132,7 +127,7 @@ class Game:
             state, reward, terminated, truncated, info = self.env.step(action)
 
             if terminated or truncated:
-                state, info = self.env.reset()
+                return
 
         self.env.close()
 
@@ -141,7 +136,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--play", action="store_true")
-    parser.add_argument("--episodes", type=int, default=500)
+    parser.add_argument("--episodes", type=int, default=50000)
     parser.add_argument("--lr", type=float, default=0.1)
     parser.add_argument("--discount-factor", type=float, default=0.9)
     parser.add_argument("--max-steps", type=int, default=30)
@@ -159,8 +154,8 @@ if __name__ == "__main__":
 
     if args.train:
         trainer = Train(env_params, q_function=q_function)
-        trainer.train(args.episodes, max_steps=args.max_steps)
+        trainer.train(args.episodes)
 
     if args.play:
         game = Game(render_mode="human", env_params=env_params, q_function=q_function)
-        game.play(args.max_steps)
+        game.play()
