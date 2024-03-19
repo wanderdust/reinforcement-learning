@@ -2,6 +2,7 @@ from itertools import count
 
 import gymnasium as gym
 import numpy as np
+import torch
 from gymnasium.experimental.wrappers import (
     AtariPreprocessingV0,
     ClipRewardV0,
@@ -9,8 +10,9 @@ from gymnasium.experimental.wrappers import (
 )
 from src.q_function import QFunction
 from src.replay_memory import ReplayMemory
-from torch import argmax, optim
+from torch import optim
 from torch.nn import MSELoss
+from tqdm import tqdm
 
 
 class DQN:
@@ -20,8 +22,8 @@ class DQN:
         # Environment
         self.env = gym.make(
             "ALE/SpaceInvaders-v5",
-            render_mode="human",
             frameskip=1,
+            # render_mode="human",
         )
         self.env = AtariPreprocessingV0(self.env, frame_skip=4)
         self.env = FrameStackObservationV0(self.env, 4)
@@ -34,7 +36,8 @@ class DQN:
         self.criterion = MSELoss()
 
         # Utils
-        self.memory = ReplayMemory()
+        self.memory_size = 500
+        self.memory = ReplayMemory(self.memory_size)
 
         # Training params
         self.epsilon = 0.1
@@ -45,15 +48,17 @@ class DQN:
         if self.epsilon >= np.random.uniform():
             return self.env.action_space.sample()
 
-        return argmax(self.q_function(x))
+        return torch.argmax(self.q_function(x))
 
     def train(self):
         obs, info = self.env.reset()
 
-        for i in count(0):
-            self.training_step(i, obs)
+        for step_i in count(0):
+            self.act(obs)
+            if step_i > self.memory_size:
+                self.learn(step_i)
 
-    def training_step(self, i, obs):
+    def act(self, obs):
         # 1. Take action based on policy and observe r + x_t+1
         # if prob <= 0.1 random action, else use Q-function
         action = self.policy(obs)
@@ -64,6 +69,7 @@ class DQN:
         # 3. Store preprocessed state in memory (x, a, r, x_t+1)
         self.memory.add(obs, action, reward, next_obs, terminated)
 
+    def learn(self, step_i):
         # 4. Sample random batch of transitions
         batch = self.memory.sample(size=64)
 
@@ -72,11 +78,11 @@ class DQN:
             if terminated:
                 y = reward
             else:
-                y = reward + self.discount * np.max(self.q_function_target(next_obs))
+                y = reward + self.discount * torch.max(self.q_function_target(next_obs))
 
-            loss = self.criterion(self.q_function_target(obs)[action], y)
+            loss = self.criterion(self.q_function_target(obs).squeeze()[action], y)
             loss.backward()
             self.optimizer.step()
 
-            if i % self.update_target_q_every == 0:
+            if step_i % self.update_target_q_every == 0:
                 self.q_function_target.load_state_dict(self.q_function.state_dict())
