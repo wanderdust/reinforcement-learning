@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 
 class QFunction:
-    def __init__(self, lr: int = 0.1, discount_factor: int = 0.9):
+    def __init__(self, lr: float = 0.1, discount_factor: float = 0.9):
         self.lr = lr
         self.discount_factor = discount_factor
         self.q_values = None
@@ -24,7 +24,7 @@ class QFunction:
 
         self.q_values = q_values
 
-    def update(self, state, action, next_state, reward):
+    def update(self, state: int, action: int, next_state: int, reward: int):
         next_state_max = max(self.q_values[next_state].values())
 
         update = (
@@ -64,7 +64,7 @@ class QLearning:
         self.epsilon_decay = epsilon_decay
         self.epsilon = epsilon
 
-    def policy(self, state):
+    def policy(self, state: int):
         self.epsilon *= self.epsilon_decay
 
         if np.random.uniform() <= self.epsilon:
