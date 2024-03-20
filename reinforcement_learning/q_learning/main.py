@@ -96,7 +96,7 @@ class QLearning:
             state = next_state
 
             if terminated or truncated:
-                next_state, info = self.env.reset()
+                state, info = self.env.reset()
 
         self.q_function.save_q_values()
         self.env.close()
@@ -126,6 +126,8 @@ if __name__ == "__main__":
     parser.add_argument("--episodes", type=int, default=50000)
     parser.add_argument("--lr", type=float, default=0.1)
     parser.add_argument("--discount-factor", type=float, default=0.9)
+    parser.add_argument("--epsilon", type=float, default=0.9)
+    parser.add_argument("--epsilon-decay", type=float, default=0.995)
 
     args = parser.parse_args()
 
@@ -138,12 +140,12 @@ if __name__ == "__main__":
 
     q_function = QFunction(lr=args.lr, discount_factor=args.discount_factor)
 
-    if args.train or True:
+    if args.train:
         q_learning = QLearning(
             gym.make(**env_params),
             q_function=q_function,
-            epsilon=0.9,
-            epsilon_decay=0.995,
+            epsilon=args.epsilon,
+            epsilon_decay=args.epsilon_decay,
         )
         q_learning.train(args.episodes)
 
