@@ -1,5 +1,6 @@
 import argparse
 import json
+import random
 from collections import defaultdict
 from pathlib import Path
 
@@ -22,7 +23,6 @@ class QFunction:
                 q_values[state][action] = 0
 
         self.q_values = q_values
-        return self
 
     def update(self, state, action, next_state, reward):
         next_state_max = max(self.q_values[next_state].values())
@@ -51,37 +51,40 @@ class QFunction:
         }
 
 
-class Policy:
-    def __init__(self, num_actions: int):
-        self.num_actions = num_actions
+class QLearning:
+    def __init__(
+        self, env, q_function: QFunction, epsilon: int = 0.99, epsilon_decay=1
+    ):
+        self.env = env
+        self.q_function = q_function
 
-    def __call__(self, q_values: dict, epsilon: int = 0.1) -> int:
-        if np.random.uniform() <= epsilon:
-            return int(np.random.choice(np.arange(self.num_actions)))
+        self.q_function.init_q_values(
+            self.env.action_space.n, self.env.observation_space.n
+        )
+        self.epsilon_decay = epsilon_decay
+        self.epsilon = epsilon
 
+    def policy(self, state):
+        self.epsilon *= self.epsilon_decay
+
+        if np.random.uniform() <= self.epsilon:
+            return int(self.env.action_space.sample())
+
+        q_values = self.q_function.q_values[state]
+
+        # If 2 or more actions have the same q-value, choose at random
         max_value = max(q_values.values())
         max_actions = [
             action for action, value in q_values.items() if value == max_value
         ]
         return int(np.random.choice(max_actions))
 
-
-class Train:
-    def __init__(self, env_params: dict, q_function: QFunction):
-        self.env = gym.make(**env_params)
-
-        self.q_function = q_function.init_q_values(
-            self.env.action_space.n, self.env.observation_space.n
-        )
-        self.policy = Policy(self.env.action_space.n)
-
     def train(self, num_episodes: int):
         state, info = self.env.reset()
 
         for i in tqdm(range(num_episodes)):
             # 1. Select action based on q_value + policy
-            q_values = self.q_function.q_values[state]
-            action = self.policy(q_values, epsilon=0.2)
+            action = self.policy(state)
 
             # 2. Take action
             next_state, reward, terminated, truncated, info = self.env.step(action)
@@ -98,26 +101,14 @@ class Train:
         self.q_function.save_q_values()
         self.env.close()
 
-
-class Game:
-    def __init__(self, env_params: dict, render_mode: str, q_function: QFunction):
-        self.env = gym.make(render_mode=render_mode, **env_params)
-
-        self.q_function = q_function.init_q_values(
-            self.env.action_space.n, self.env.observation_space.n
-        )
-        self.q_function.load_q_values()
-
-        self.q_function.load_q_values()
-        self.policy = Policy(self.env.action_space.n)
-
     def play(self, max_steps: int = 100):
+        self.q_function.load_q_values()
+
         state, info = self.env.reset()
 
         for _ in range(max_steps):
             # 1. Select action based on q_value + policy
-            q_values = self.q_function.q_values[state]
-            action = self.policy(q_values, epsilon=0)
+            action = self.policy(state)
 
             # 2. Take action
             state, reward, terminated, truncated, info = self.env.step(action)
@@ -132,7 +123,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--play", action="store_true")
-    parser.add_argument("--episodes", type=int, default=500)
+    parser.add_argument("--episodes", type=int, default=50000)
     parser.add_argument("--lr", type=float, default=0.1)
     parser.add_argument("--discount-factor", type=float, default=0.9)
 
@@ -147,10 +138,20 @@ if __name__ == "__main__":
 
     q_function = QFunction(lr=args.lr, discount_factor=args.discount_factor)
 
-    if args.train:
-        trainer = Train(env_params, q_function=q_function)
-        trainer.train(args.episodes)
+    if args.train or True:
+        q_learning = QLearning(
+            gym.make(**env_params),
+            q_function=q_function,
+            epsilon=0.9,
+            epsilon_decay=0.995,
+        )
+        q_learning.train(args.episodes)
 
     if args.play:
-        game = Game(render_mode="human", env_params=env_params, q_function=q_function)
-        game.play()
+        q_learning = QLearning(
+            gym.make(**env_params, render_mode="human"),
+            q_function=q_function,
+            epsilon=0,
+            epsilon_decay=1,
+        )
+        q_learning.play()
