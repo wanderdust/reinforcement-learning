@@ -42,7 +42,8 @@ class DQN:
         self.memory = ReplayMemory(self.memory_size)
 
         # Training params
-        self.epsilon = 0.1
+        self.epsilon = 1
+        self.epsilon_decay = 0.9999
         self.discount = 0.9
         self.update_target_q_every = 10_000
         self.batch_size = 32
@@ -64,6 +65,20 @@ class DQN:
             return self.env.action_space.sample()
 
         return torch.argmax(self.q_function(x)).item()
+
+    def update_epsilon(self):
+        if self.epsilon > 0.1:
+            self.epsilon *= self.epsilon_decay
+
+    def train(self):
+        for i in count(0):
+            rewards, actions = self.episode()
+            self.update_epsilon()
+
+            avg_reward = sum(rewards) / len(rewards)
+            self.writer.add_scalar("Avg Episode Reward", avg_reward, global_step=i)
+            self.writer.add_scalar("Epsilon", self.epsilon, global_step=i)
+            self.writer.add_histogram("actions", torch.tensor(actions), global_step=i)
 
     def episode(self):
         rewards = []
@@ -87,17 +102,9 @@ class DQN:
                 self.learn(step_i)
 
             rewards.append(reward.item())
+
             if terminated:
                 return rewards, actions
-
-    def train(self):
-        for i in count(0):
-            rewards, actions = self.episode()
-
-            avg_reward = sum(rewards) / len(rewards)
-            self.writer.add_scalar("Avg Episode Reward", avg_reward, global_step=i)
-            self.writer.add_scalar("Epsilon", self.epsilon, global_step=i)
-            self.writer.add_histogram("actions", torch.tensor(actions), global_step=i)
 
     def learn(self, step_i):
         observations, actions, rewards, next_observations, dones = self.memory.sample(
