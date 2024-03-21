@@ -6,7 +6,7 @@ import torch
 
 
 class ReplayMemory:
-    def __init__(self, maxlen: int = 500):
+    def __init__(self, maxlen: int = 10_000):
         self.memory = deque(maxlen=maxlen)
         self.experience = namedtuple(
             "Experience", ["obs", "action", "reward", "next_obs", "terminated"]
@@ -39,3 +39,6 @@ class ReplayMemory:
             dones[i] = done
 
         return observations, actions, rewards, next_observations, dones
+
+    def size(self):
+        return len(self.memory)

@@ -46,6 +46,7 @@ class DQN:
         self.discount = 0.9
         self.update_target_q_every = 10_000
         self.batch_size = 32
+        self.min_replay_memory_size = 500
 
         # Tensorboard
         self.writer = SummaryWriter(log_dir="./tensorboard_logs")
@@ -64,12 +65,16 @@ class DQN:
 
         return torch.argmax(self.q_function(x)).item()
 
-    def train(self):
+    def episode(self):
+        rewards = []
+        actions = []
+
         obs, info = self.env.reset()
         obs = torch.tensor(obs, dtype=torch.float32).to(self.device).unsqueeze(0)
 
         for step_i in count(0):
             action = self.policy(obs)
+            actions.append(action)
 
             next_obs, reward, terminated, truncated, info = self.env.step(action)
             next_obs = torch.tensor(next_obs, dtype=torch.float32).to(self.device).unsqueeze(0)
@@ -78,15 +83,21 @@ class DQN:
             self.memory.add(obs, action, reward, next_obs, terminated)
             obs = next_obs
 
-            self.writer.add_scalar("Reward", reward, global_step=step_i)
-            self.writer.add_scalar("Epsilon", self.epsilon, global_step=step_i)
-
-            if step_i > self.memory_size:
+            if self.memory.size() > self.min_replay_memory_size:
                 self.learn(step_i)
 
+            rewards.append(reward.item())
             if terminated:
-                obs, info = self.env.reset()
-                obs = torch.tensor(obs, dtype=torch.float32).to(self.device).unsqueeze(0)
+                return rewards, actions
+
+    def train(self):
+        for i in count(0):
+            rewards, actions = self.episode()
+
+            avg_reward = sum(rewards) / len(rewards)
+            self.writer.add_scalar("Avg Episode Reward", avg_reward, global_step=i)
+            self.writer.add_scalar("Epsilon", self.epsilon, global_step=i)
+            self.writer.add_histogram("actions", torch.tensor(actions), global_step=i)
 
     def learn(self, step_i):
         observations, actions, rewards, next_observations, dones = self.memory.sample(
@@ -107,6 +118,3 @@ class DQN:
 
         if step_i % self.update_target_q_every == 0:
             self.q_function_target.load_state_dict(self.q_function.state_dict())
-
-    def visualise(self):
-        pass
