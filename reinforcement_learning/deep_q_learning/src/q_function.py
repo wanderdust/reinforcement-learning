@@ -17,8 +17,6 @@ class QFunction(nn.Module):
 
     def forward(self, x):
 
-        x = x.unsqueeze(0) if x.dim() == 3 else x
-
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = self.flatten(x)

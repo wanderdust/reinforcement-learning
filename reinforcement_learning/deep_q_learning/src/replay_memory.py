@@ -2,6 +2,7 @@ import random
 from collections import deque, namedtuple
 
 import numpy as np
+import torch
 
 
 class ReplayMemory:
@@ -21,6 +22,20 @@ class ReplayMemory:
     ):
         self.memory.append(self.experience(obs, action, reward, next_obs, terminated))
 
-    def sample(self, size: int):
-        size = size if len(self.memory) > size else len(self.memory)
-        return random.sample(self.memory, size)
+    def sample(self, size: int, device: str):
+        sample = random.sample(self.memory, size)
+
+        observations = torch.zeros((size, 4, 84, 84), dtype=torch.float32).to(device)
+        actions = torch.zeros(size, dtype=torch.int64).to(device)
+        rewards = torch.zeros(size).to(device)
+        next_observations = torch.zeros((size, 4, 84, 84), dtype=torch.float32).to(device)
+        dones = torch.zeros(size).to(device)
+
+        for i, (observation, action, reward, next_observation, done) in enumerate(sample):
+            observations[i] = observation
+            actions[i] = action
+            rewards[i] = reward
+            next_observations[i] = next_observation
+            dones[i] = done
+
+        return observations, actions, rewards, next_observations, dones

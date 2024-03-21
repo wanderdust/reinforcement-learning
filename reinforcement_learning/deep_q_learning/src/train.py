@@ -27,7 +27,7 @@ class DQN:
             frameskip=1,
             # render_mode="human",
         )
-        self.env = AtariPreprocessingV0(self.env, frame_skip=4)
+        self.env = AtariPreprocessingV0(self.env, frame_skip=3)
         self.env = FrameStackObservationV0(self.env, 4)
         self.env = ClipRewardV0(self.env, -1, 1)
 
@@ -45,12 +45,10 @@ class DQN:
         self.epsilon = 0.1
         self.discount = 0.9
         self.update_target_q_every = 10_000
+        self.batch_size = 32
 
         # Tensorboard
         self.writer = SummaryWriter(log_dir="./tensorboard_logs")
-
-        # metrics
-        self.rewards = deque(100_000)
 
     @property
     def device(self):
@@ -64,7 +62,7 @@ class DQN:
         if self.epsilon >= np.random.uniform():
             return self.env.action_space.sample()
 
-        return torch.argmax(self.q_function(x))
+        return torch.argmax(self.q_function(x)).item()
 
     def train(self):
         obs, info = self.env.reset()
@@ -74,7 +72,7 @@ class DQN:
             action = self.policy(obs)
 
             next_obs, reward, terminated, truncated, info = self.env.step(action)
-            next_obs = torch.tensor(obs, dtype=torch.float32).to(self.device)
+            next_obs = torch.tensor(next_obs, dtype=torch.float32).to(self.device).unsqueeze(0)
             reward = torch.tensor(reward, dtype=torch.float32).to(self.device)
 
             self.memory.add(obs, action, reward, next_obs, terminated)
@@ -88,27 +86,27 @@ class DQN:
 
             if terminated:
                 obs, info = self.env.reset()
-                obs = (
-                    torch.tensor(obs, dtype=torch.float32).to(self.device).unsqueeze(0)
-                )
+                obs = torch.tensor(obs, dtype=torch.float32).to(self.device).unsqueeze(0)
 
     def learn(self, step_i):
-        batch = self.memory.sample(size=64)
+        observations, actions, rewards, next_observations, dones = self.memory.sample(
+            size=self.batch_size, device=self.device
+        )
 
-        for obs, action, reward, next_obs, terminated in batch:
-            if terminated:
-                y = reward
-            else:
-                y = reward + self.discount * torch.max(self.q_function_target(next_obs))
+        max_values = torch.max(self.q_function_target(next_observations), 1)[0]
+        target = rewards + self.discount * max_values * (1 - dones)
 
-            q_s = self.q_function_target(obs).squeeze()[action].to(self.device)
+        predicted = self.q_function(observations).gather(1, actions.unsqueeze(dim=1))
 
-            self.optimizer.zero_grad()
-            loss = self.criterion(q_s, y)
-            loss.backward()
-            self.optimizer.step()
+        self.optimizer.zero_grad()
+        loss = self.criterion(predicted, target)
+        loss.backward()
+        self.optimizer.step()
 
-            self.writer.add_scalar("Loss", loss.item(), global_step=step_i)
+        self.writer.add_scalar("Loss", loss.item(), global_step=step_i)
 
-            if step_i % self.update_target_q_every == 0:
-                self.q_function_target.load_state_dict(self.q_function.state_dict())
+        if step_i % self.update_target_q_every == 0:
+            self.q_function_target.load_state_dict(self.q_function.state_dict())
+
+    def visualise(self):
+        pass
