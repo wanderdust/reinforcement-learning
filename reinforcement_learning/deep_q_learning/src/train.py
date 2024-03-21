@@ -125,3 +125,5 @@ class DQN:
 
         if step_i % self.update_target_q_every == 0:
             self.q_function_target.load_state_dict(self.q_function.state_dict())
+
+        return loss
