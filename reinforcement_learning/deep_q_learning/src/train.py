@@ -32,6 +32,7 @@ class DQN:
         )
         self.env = AtariPreprocessingV0(self.env, frame_skip=3)
         self.env = FrameStackObservationV0(self.env, 4)
+        self.env = gym.wrappers.RecordEpisodeStatistics(self.env)  # real score in info['episode'], before clipping
         self.env = ClipRewardV0(self.env, -1, 1)
 
         # Initialising Q-Function(s)
@@ -86,8 +87,9 @@ class DQN:
             self.epsilon *= self.epsilon_decay
 
     def train(self, max_episodes=None, checkpoint_every=100):
-        for i in count(0):
-            if max_episodes and i >= max_episodes:
+        start = self.episode_count + 1 if self.total_steps else 0  # continue numbering after a resume
+        for i in count(start):
+            if max_episodes and i - start >= max_episodes:
                 break
                 
             rewards, actions, actual_score = self.episode()
@@ -136,7 +138,7 @@ class DQN:
             
             # Track actual game reward before clipping
             if 'episode' in info:
-                episode_raw_reward = info['episode']['r']
+                episode_raw_reward = float(info['episode']['r'])
             
             next_obs = torch.tensor(next_obs, dtype=torch.float32).to(self.device).unsqueeze(0)
             reward = torch.tensor(reward, dtype=torch.float32).to(self.device)
@@ -150,7 +152,7 @@ class DQN:
             rewards.append(reward.item())
             self.total_steps += 1
 
-            if terminated:
+            if terminated or truncated:
                 # If episode info not available, estimate from lives or use clipped sum
                 if episode_raw_reward == 0.0:
                     episode_raw_reward = sum(rewards)
