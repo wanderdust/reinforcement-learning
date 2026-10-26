@@ -20,15 +20,17 @@ class ReplayMemory:
         next_obs: np.array,
         terminated: bool,
     ):
-        self.memory.append(self.experience(obs, action, reward, next_obs, terminated))
+        self.memory.append(
+            self.experience(obs.to("cpu", torch.uint8), action, reward, next_obs.to("cpu", torch.uint8), terminated)
+        )
 
     def sample(self, size: int, device: str):
         sample = random.sample(self.memory, size)
 
-        observations = torch.zeros((size, 4, 84, 84), dtype=torch.float32).to(device)
+        observations = torch.zeros((size, 4, 84, 84), dtype=torch.uint8)
         actions = torch.zeros(size, dtype=torch.int64).to(device)
         rewards = torch.zeros(size).to(device)
-        next_observations = torch.zeros((size, 4, 84, 84), dtype=torch.float32).to(device)
+        next_observations = torch.zeros((size, 4, 84, 84), dtype=torch.uint8)
         dones = torch.zeros(size).to(device)
 
         for i, (observation, action, reward, next_observation, done) in enumerate(sample):
@@ -38,7 +40,13 @@ class ReplayMemory:
             next_observations[i] = next_observation
             dones[i] = done
 
-        return observations, actions, rewards, next_observations, dones
+        return (
+            observations.to(device, torch.float32),
+            actions,
+            rewards,
+            next_observations.to(device, torch.float32),
+            dones,
+        )
 
     def size(self):
         return len(self.memory)

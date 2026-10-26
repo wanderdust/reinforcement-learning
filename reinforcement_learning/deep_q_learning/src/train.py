@@ -43,7 +43,7 @@ class DQN:
         self.criterion = SmoothL1Loss()
 
         # Utils
-        self.memory_size = 10_000
+        self.memory_size = 100_000
         self.memory = ReplayMemory(self.memory_size)
 
         # Training params
