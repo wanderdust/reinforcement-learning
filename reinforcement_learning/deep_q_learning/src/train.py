@@ -15,7 +15,7 @@ from gymnasium.experimental.wrappers import (
 from src.q_function import QFunction
 from src.replay_memory import ReplayMemory
 from torch import optim
-from torch.nn import MSELoss
+from torch.nn import SmoothL1Loss
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
@@ -32,7 +32,7 @@ class DQN:
         )
         self.env = AtariPreprocessingV0(self.env, frame_skip=3)
         self.env = FrameStackObservationV0(self.env, 4)
-        self.env = gym.wrappers.RecordEpisodeStatistics(self.env)  # real score in info['episode'], before clipping
+        self.env = gym.wrappers.RecordEpisodeStatistics(self.env)
         self.env = ClipRewardV0(self.env, -1, 1)
 
         # Initialising Q-Function(s)
@@ -40,7 +40,7 @@ class DQN:
         self.q_function_target = QFunction(4, self.env.action_space.n).to(self.device)
         self.q_function_target.load_state_dict(self.q_function.state_dict())
         self.optimizer = optim.RMSprop(self.q_function.parameters(), lr=0.00025)
-        self.criterion = MSELoss()
+        self.criterion = SmoothL1Loss()
 
         # Utils
         self.memory_size = 10_000
@@ -53,6 +53,7 @@ class DQN:
         self.update_target_q_every = 10_000
         self.batch_size = 32
         self.min_replay_memory_size = 500
+        self.learn_every = 4
 
         # Tensorboard with timestamped runs
         run_name = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -87,7 +88,7 @@ class DQN:
             self.epsilon *= self.epsilon_decay
 
     def train(self, max_episodes=None, checkpoint_every=100):
-        start = self.episode_count + 1 if self.total_steps else 0  # continue numbering after a resume
+        start = self.episode_count + 1 if self.total_steps else 0
         for i in count(start):
             if max_episodes and i - start >= max_episodes:
                 break
@@ -146,7 +147,7 @@ class DQN:
             self.memory.add(obs, action, reward, next_obs, terminated)
             obs = next_obs
 
-            if self.memory.size() > self.min_replay_memory_size:
+            if self.memory.size() > self.min_replay_memory_size and self.total_steps % self.learn_every == 0:
                 self.learn(self.total_steps)
 
             rewards.append(reward.item())
